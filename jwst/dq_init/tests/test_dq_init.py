@@ -1,7 +1,7 @@
 import warnings
 import pytest
 from jwst.dq_init import DQInitStep
-from jwst.dq_init.dq_initialization import do_dqinit
+from jwst.dq_init.dq_initialization import do_dqinit, check_dimensions
 from jwst.datamodels import MIRIRampModel, MaskModel, GuiderRawModel, RampModel, dqflags
 from jwst.datamodels.validate import ValidationWarning
 import numpy as np
@@ -15,6 +15,32 @@ test_data = [(1, 1, 2304, 2048, 2, 2, 'FGS', 'FGS_ID-STACK'),
              (1, 1, 1032, 1024, 1, 5, 'MIRI', 'MIR_IMAGE')]
 ids = ["GuiderRawModel-Stack", "GuiderRawModel-Image", "RampModel", "MIRIRampModel"]
 
+@pytest.mark.parametrize(args, test_data, ids=ids)
+def test_dq_dimensions(xstart, ystart, xsize, ysize, nints, ngroups, instrument, exp_type):
+    """
+    Check that when  the input DQ arrays (DQ, PixelDQ, or GroupDQ) have length 0, 
+    they are correctly updated after `check_dimensions`.
+    """
+    
+    # Create raw data and DQ MaskModel.
+    dm_ramp = make_rawramp(instrument, nints, ngroups, ysize, xsize, ystart, xstart, exp_type)
+
+    # Initialize DQ arrays with empty arrays.
+    if instrument == "FGS":
+        dm_ramp.dq = np.zeros((0,0))
+    else:
+        dm_ramp.pixeldq = np.zeros((0,0))
+        dm_ramp.groupdq = np.zeros((0,0,0,0)) 
+
+    # Run check_dimensions
+    check_dimensions(dm_ramp)
+   
+    # Check if DQ arrays were updated correctly. 
+    if instrument == "FGS":
+        assert dm_ramp.dq.shape == dm_ramp.data.shape[-2:]
+    else:
+        assert dm_ramp.pixeldq.shape == dm_ramp.data.shape[-2:]
+        assert dm_ramp.groupdq.shape == dm_ramp.data.shape  
 
 @pytest.mark.parametrize(args, test_data, ids=ids)
 def test_dq_im(xstart, ystart, xsize, ysize, nints, ngroups, instrument, exp_type):
